@@ -42,17 +42,20 @@ type Extractor struct {
 
 // Result contains one extraction result for one source record.
 type Result[T any] struct {
-	SourceID    string    `json:"source_id"`
-	Source      string    `json:"source"`
-	SourceURL   string    `json:"source_url,omitempty"`
-	Subreddit   string    `json:"subreddit,omitempty"`
+	SourceID  string `json:"source_id"`
+	Source    string `json:"source"`
+	SourceURL string `json:"source_url,omitempty"`
+	Subreddit string `json:"subreddit,omitempty"`
+	// BatchJobID is set when extraction runs in batch mode.
+	BatchJobID  string    `json:"batch_job_id,omitempty"`
 	ExtractedAt time.Time `json:"extracted_at"`
 
 	Model string `json:"model,omitempty"`
 	Usage Usage  `json:"usage,omitempty"`
 
-	Data  T      `json:"data"`
-	Error string `json:"error,omitempty"`
+	Data T `json:"data"`
+	// Error is nil on success and populated when extraction fails for this item.
+	Error *string `json:"error,omitempty"`
 }
 
 // New builds an extractor from a provider client and options.
@@ -149,14 +152,14 @@ func runRealtime[T any](ctx context.Context, e *Extractor, records []ContentReco
 
 				resp, err := e.completeWithRetry(ctx, req)
 				if err != nil {
-					results[idx].Error = err.Error()
+					results[idx].Error = stringPtr(err.Error())
 					e.reportProgress(int(completed.Add(1)), len(records))
 					continue
 				}
 
 				data, err := ParseResponse[T](resp.Content)
 				if err != nil {
-					results[idx].Error = fmt.Sprintf("parse response: %v", err)
+					results[idx].Error = stringPtr(fmt.Sprintf("parse response: %v", err))
 					results[idx].Model = resp.Model
 					results[idx].Usage = resp.Usage
 					e.reportProgress(int(completed.Add(1)), len(records))
@@ -215,9 +218,8 @@ func runBatch[T any](ctx context.Context, e *Extractor, records []ContentRecord,
 	}
 
 	type batchJob struct {
-		id          string
-		requestIDs  []string
-		requestObjs []CompletionRequest
+		id         string
+		requestIDs []string
 	}
 	chunks := chunkRequests(requests, e.batchSize)
 	jobs := make([]batchJob, 0, len(chunks))
@@ -228,7 +230,7 @@ func runBatch[T any](ctx context.Context, e *Extractor, records []ContentRecord,
 		if err != nil {
 			for _, req := range chunk {
 				idx := idToIndex[req.ID]
-				results[idx].Error = fmt.Sprintf("submit batch: %v", err)
+				results[idx].Error = stringPtr(fmt.Sprintf("submit batch: %v", err))
 				e.reportProgress(int(completed.Add(1)), len(records))
 			}
 			continue
@@ -237,11 +239,21 @@ func runBatch[T any](ctx context.Context, e *Extractor, records []ContentRecord,
 		requestIDs := make([]string, len(chunk))
 		for i, req := range chunk {
 			requestIDs[i] = req.ID
+			idx := idToIndex[req.ID]
+			results[idx].BatchJobID = jobID
+		}
+		if e.batchProgress != nil {
+			e.batchProgress(jobID, BatchStatus{
+				ID:        jobID,
+				State:     BatchQueued,
+				Total:     len(chunk),
+				Completed: 0,
+				Failed:    0,
+			})
 		}
 		jobs = append(jobs, batchJob{
-			id:          jobID,
-			requestIDs:  requestIDs,
-			requestObjs: chunk,
+			id:         jobID,
+			requestIDs: requestIDs,
 		})
 	}
 
@@ -276,15 +288,17 @@ func runBatch[T any](ctx context.Context, e *Extractor, records []ContentRecord,
 			}
 		}()
 	}
-	wg.Wait()
-	close(outputs)
+	go func() {
+		wg.Wait()
+		close(outputs)
+	}()
 
 	for out := range outputs {
 		if out.err != nil {
 			for _, reqID := range out.requestIDs {
 				idx := idToIndex[reqID]
-				if results[idx].Error == "" {
-					results[idx].Error = fmt.Sprintf("batch %s: %v", out.jobID, out.err)
+				if results[idx].Error == nil {
+					results[idx].Error = stringPtr(fmt.Sprintf("batch %s: %v", out.jobID, out.err))
 					e.reportProgress(int(completed.Add(1)), len(records))
 				}
 			}
@@ -300,14 +314,14 @@ func runBatch[T any](ctx context.Context, e *Extractor, records []ContentRecord,
 			seen[item.RequestID] = true
 
 			if item.Error != "" {
-				results[idx].Error = item.Error
+				results[idx].Error = stringPtr(item.Error)
 				e.reportProgress(int(completed.Add(1)), len(records))
 				continue
 			}
 
 			data, err := ParseResponse[T](item.Response.Content)
 			if err != nil {
-				results[idx].Error = fmt.Sprintf("parse response: %v", err)
+				results[idx].Error = stringPtr(fmt.Sprintf("parse response: %v", err))
 				results[idx].Model = item.Response.Model
 				results[idx].Usage = item.Response.Usage
 				e.reportProgress(int(completed.Add(1)), len(records))
@@ -325,8 +339,8 @@ func runBatch[T any](ctx context.Context, e *Extractor, records []ContentRecord,
 				continue
 			}
 			idx := idToIndex[reqID]
-			if results[idx].Error == "" {
-				results[idx].Error = "missing batch result item"
+			if results[idx].Error == nil {
+				results[idx].Error = stringPtr("missing batch result item")
 				e.reportProgress(int(completed.Add(1)), len(records))
 			}
 		}
@@ -460,4 +474,8 @@ func baseResult[T any](record ContentRecord) Result[T] {
 		ExtractedAt: time.Now().UTC(),
 		Data:        zero,
 	}
+}
+
+func stringPtr(s string) *string {
+	return &s
 }

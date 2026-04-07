@@ -45,3 +45,26 @@ func TestParseResponseErrorsOnInvalidJSON(t *testing.T) {
 		t.Fatal("expected error for invalid json")
 	}
 }
+
+func TestParseResponseAllowsMissingFields(t *testing.T) {
+	got, err := ParseResponse[parseFixture](`{"topic":"partial"}`)
+	if err != nil {
+		t.Fatalf("ParseResponse() error = %v", err)
+	}
+	if got.Topic != "partial" {
+		t.Fatalf("topic = %q, want partial", got.Topic)
+	}
+	if got.Score != 0 {
+		t.Fatalf("score = %d, want zero value for missing field", got.Score)
+	}
+}
+
+func TestParseResponseIgnoresExtraFields(t *testing.T) {
+	got, err := ParseResponse[parseFixture](`{"topic":"extra","score":3,"ignored":"x"}`)
+	if err != nil {
+		t.Fatalf("ParseResponse() error = %v", err)
+	}
+	if got.Topic != "extra" || got.Score != 3 {
+		t.Fatalf("parsed mismatch: %+v", got)
+	}
+}

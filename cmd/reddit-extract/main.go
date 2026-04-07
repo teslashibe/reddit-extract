@@ -22,6 +22,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if strings.HasPrefix(os.Args[1], "-") {
+		cmdRun(os.Args[1:])
+		return
+	}
+
 	switch os.Args[1] {
 	case "run":
 		cmdRun(os.Args[2:])
@@ -43,6 +48,7 @@ func printUsage() {
 
 Usage:
   reddit-extract run --input <file.jsonl> --schema <schema.json> --output <results.jsonl>
+  reddit-extract --input <file.jsonl> --schema <schema.json> --output <results.jsonl>
   reddit-extract read --input <file.jsonl>
   reddit-extract version
 `, version)
@@ -160,6 +166,11 @@ func cmdRun(args []string) {
 	}
 
 	client := buildProviderClient(*provider, *model, *anthropicKey, *openaiKey)
+	if *batch {
+		if _, ok := client.(redditextract.BatchClient); !ok {
+			fatal("provider %q does not support --batch mode", *provider)
+		}
+	}
 
 	opts := []redditextract.ExtractorOption{
 		redditextract.WithConcurrency(*concurrency),
@@ -202,7 +213,7 @@ func cmdRun(args []string) {
 	success := 0
 	failed := 0
 	for _, result := range results {
-		if result.Error == "" {
+		if result.Error == nil {
 			success++
 		} else {
 			failed++

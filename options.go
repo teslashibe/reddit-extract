@@ -21,6 +21,7 @@ func WithMaxCommentDepth(depth int) ReaderOption {
 }
 
 // WithMaxComments sets the maximum number of comments included per record.
+// A value of 0 excludes all comments.
 func WithMaxComments(n int) ReaderOption {
 	return func(r *Reader) {
 		if n >= 0 {
