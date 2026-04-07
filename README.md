@@ -215,6 +215,14 @@ Use `providers/anthropic` and `providers/openai` as references.
 
 See [`DEVELOPMENT.md`](./DEVELOPMENT.md) for local workflow, test commands, and contribution conventions.
 
+## Releasing
+
+Releases are automated via `.github/workflows/release.yml`.
+
+- Push a semver tag (for example `v0.1.1`) to publish a release with generated notes.
+- Tags that include a hyphen (for example `v0.2.0-rc1`) are published as prereleases.
+- You can also run the `Release` workflow manually with a tag input.
+
 ## Package layout
 
 ```text
