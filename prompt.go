@@ -39,7 +39,7 @@ func BuildUserPrompt(record ContentRecord, maxBodyChars, maxComments int) string
 	if maxBodyChars <= 0 {
 		maxBodyChars = 8000
 	}
-	if maxComments <= 0 {
+	if maxComments < 0 {
 		maxComments = 50
 	}
 

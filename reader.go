@@ -113,7 +113,7 @@ func (r *Reader) toRecord(post Post) ContentRecord {
 		return comments[i].Score > comments[j].Score
 	})
 
-	if r.maxComments > 0 && len(comments) > r.maxComments {
+	if r.maxComments >= 0 && len(comments) > r.maxComments {
 		comments = comments[:r.maxComments]
 	}
 

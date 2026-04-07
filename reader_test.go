@@ -225,6 +225,36 @@ func TestReaderHandlesLargeLines(t *testing.T) {
 	}
 }
 
+func TestReaderAllowsZeroMaxComments(t *testing.T) {
+	post := Post{
+		ID:         "p1",
+		Subreddit:  "whoop",
+		Title:      "comments off",
+		SelfText:   "body",
+		Score:      1,
+		IsSelf:     true,
+		CreatedUTC: time.Now().UTC(),
+		Comments: []Comment{
+			{ID: "c1", Author: "alice", Body: "one", Score: 1, Depth: 0},
+		},
+	}
+
+	var input strings.Builder
+	mustWriteJSONLine(t, &input, post)
+
+	reader := NewReader(WithMaxComments(0))
+	records, stats, err := reader.ReadLines(strings.NewReader(input.String()))
+	if err != nil {
+		t.Fatalf("ReadLines() error = %v", err)
+	}
+	if stats.Parsed != 1 || len(records) != 1 {
+		t.Fatalf("records mismatch: parsed=%d len=%d", stats.Parsed, len(records))
+	}
+	if len(records[0].Comments) != 0 {
+		t.Fatalf("expected zero comments when WithMaxComments(0), got %d", len(records[0].Comments))
+	}
+}
+
 func mustWriteJSONLine(t *testing.T, b *strings.Builder, value any) {
 	t.Helper()
 	data, err := json.Marshal(value)

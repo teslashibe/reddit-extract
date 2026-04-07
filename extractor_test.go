@@ -151,13 +151,13 @@ func TestRunRealtimeExtractsTypedData(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("len(results) = %d, want 2", len(results))
 	}
-	if results[0].Error != "" {
-		t.Fatalf("unexpected first result error: %s", results[0].Error)
+	if results[0].Error != nil {
+		t.Fatalf("unexpected first result error: %v", *results[0].Error)
 	}
 	if results[0].Data.Trend != "sleep" || results[0].Data.Score != 8 {
 		t.Fatalf("first result data mismatch: %+v", results[0].Data)
 	}
-	if results[1].Error == "" {
+	if results[1].Error == nil {
 		t.Fatalf("second result should contain parse error")
 	}
 	if got := progressCalls.Load(); got != 2 {
@@ -182,8 +182,8 @@ func TestRunRetriesOnRateLimit(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("len(results) = %d, want 1", len(results))
 	}
-	if results[0].Error != "" {
-		t.Fatalf("unexpected error after retry: %s", results[0].Error)
+	if results[0].Error != nil {
+		t.Fatalf("unexpected error after retry: %v", *results[0].Error)
 	}
 	if results[0].Data.Trend != "retry-success" {
 		t.Fatalf("unexpected trend: %q", results[0].Data.Trend)
@@ -209,8 +209,8 @@ func TestRunDynamicWithRuntimeSchema(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("len(results) = %d, want 1", len(results))
 	}
-	if results[0].Error != "" {
-		t.Fatalf("unexpected result error: %s", results[0].Error)
+	if results[0].Error != nil {
+		t.Fatalf("unexpected result error: %v", *results[0].Error)
 	}
 	if got := results[0].Data["sentiment"]; got != "positive" {
 		t.Fatalf("sentiment = %v, want positive", got)
@@ -227,12 +227,21 @@ func TestRunBatchMode(t *testing.T) {
 		{ID: "r2", Source: SourceReddit, Subreddit: "whoop", Title: "A", Body: "B", PublishedAt: time.Now().UTC()},
 	}
 
+	var (
+		stateMu sync.Mutex
+		states  []BatchState
+	)
 	extractor := New(
 		client,
 		WithBatchMode(),
 		WithBatchSize(1),
 		WithPollInterval(10*time.Millisecond),
 		WithMaxPollInterval(20*time.Millisecond),
+		WithBatchProgress(func(_ string, status BatchStatus) {
+			stateMu.Lock()
+			defer stateMu.Unlock()
+			states = append(states, status.State)
+		}),
 	)
 
 	results, err := Run[testExtraction](context.Background(), extractor, records)
@@ -242,10 +251,30 @@ func TestRunBatchMode(t *testing.T) {
 	if len(results) != 2 {
 		t.Fatalf("len(results) = %d, want 2", len(results))
 	}
-	if results[0].Error != "" || results[1].Error != "" {
-		t.Fatalf("unexpected batch errors: %q | %q", results[0].Error, results[1].Error)
+	if results[0].Error != nil || results[1].Error != nil {
+		t.Fatalf("unexpected batch errors: %v | %v", results[0].Error, results[1].Error)
 	}
 	if results[0].Data.Trend != "batch-a" || results[1].Data.Trend != "batch-b" {
 		t.Fatalf("unexpected batch data: %+v %+v", results[0].Data, results[1].Data)
+	}
+	if results[0].BatchJobID == "" || results[1].BatchJobID == "" {
+		t.Fatalf("expected batch job IDs on results: %+v %+v", results[0], results[1])
+	}
+
+	stateMu.Lock()
+	defer stateMu.Unlock()
+	hasState := func(target BatchState) bool {
+		for _, state := range states {
+			if state == target {
+				return true
+			}
+		}
+		return false
+	}
+	if !hasState(BatchQueued) {
+		t.Fatalf("batch progress should include queued state, states=%v", states)
+	}
+	if !hasState(BatchCompleted) {
+		t.Fatalf("batch progress should include completed state, states=%v", states)
 	}
 }

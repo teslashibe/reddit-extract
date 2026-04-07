@@ -77,9 +77,10 @@ func WithPromptBodyLimit(maxChars int) ExtractorOption {
 }
 
 // WithPromptCommentLimit sets max comments included in prompts.
+// A value of 0 excludes all comments from generated prompts.
 func WithPromptCommentLimit(maxComments int) ExtractorOption {
 	return func(e *Extractor) {
-		if maxComments > 0 {
+		if maxComments >= 0 {
 			e.maxComments = maxComments
 		}
 	}

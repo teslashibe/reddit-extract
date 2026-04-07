@@ -84,6 +84,15 @@ schema := redditextract.NewDynamicSchemaBuilder("RuntimeExtraction").
 results, err := redditextract.RunDynamic(ctx, extractor, records, schema)
 ```
 
+You can also load a runtime schema from a JSON string:
+
+```go
+schema, err := redditextract.DynamicSchemaFromString(`{"type":"object","properties":{"sentiment":{"type":"string"}}}`)
+if err != nil {
+	panic(err)
+}
+```
+
 ## Quick start (CLI)
 
 ```bash
@@ -98,6 +107,12 @@ reddit-extract run \
   --provider anthropic \
   --batch \
   --batch-size 1000
+
+# Equivalent shorthand (defaults to run when first arg is a flag)
+reddit-extract \
+  --input data/r_whoop_2026-04-06.jsonl \
+  --schema schema.json \
+  --output output/results.jsonl
 ```
 
 ### Provider auth
@@ -149,6 +164,10 @@ Override via:
 - `WithMaxComments`
 - `WithMinCommentScore`
 - `WithMinPostScore`
+
+Notes:
+- `WithMaxComments(0)` excludes comments from parsed `ContentRecord`s.
+- `WithPromptCommentLimit(0)` excludes comments from LLM prompts.
 
 ## Real-time vs batch modes
 

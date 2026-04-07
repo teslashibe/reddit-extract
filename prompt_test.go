@@ -47,3 +47,26 @@ func TestBuildUserPromptTruncatesBodyAndLimitsComments(t *testing.T) {
 		t.Fatalf("third comment should be omitted")
 	}
 }
+
+func TestBuildUserPromptAllowsZeroCommentLimit(t *testing.T) {
+	record := ContentRecord{
+		ID:          "abc123",
+		Source:      SourceReddit,
+		Subreddit:   "test",
+		Title:       "Example title",
+		Body:        "Body",
+		PublishedAt: time.Date(2026, 4, 6, 0, 0, 0, 0, time.UTC),
+		Comments: []CommentInput{
+			{Author: "a", Body: "one", Score: 10, Depth: 0},
+			{Author: "b", Body: "two", Score: 9, Depth: 0},
+		},
+	}
+
+	prompt := BuildUserPrompt(record, 8000, 0)
+	if strings.Contains(prompt, "one") || strings.Contains(prompt, "two") {
+		t.Fatalf("comment bodies should be omitted when maxComments=0")
+	}
+	if !strings.Contains(prompt, "[...2 more comments omitted]") {
+		t.Fatalf("expected omitted comments marker for zero limit")
+	}
+}

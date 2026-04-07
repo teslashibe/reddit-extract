@@ -41,6 +41,11 @@ func DynamicSchemaFromJSON(data []byte) (DynamicSchema, error) {
 	return out, nil
 }
 
+// DynamicSchemaFromString parses a JSON schema string into a DynamicSchema.
+func DynamicSchemaFromString(schemaJSON string) (DynamicSchema, error) {
+	return DynamicSchemaFromJSON([]byte(schemaJSON))
+}
+
 // GenerateSchema builds a JSON schema from a typed Go struct.
 //
 // Supported field kinds include strings, booleans, numbers, integers, slices,
