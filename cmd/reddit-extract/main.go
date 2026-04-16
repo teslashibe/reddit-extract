@@ -105,7 +105,7 @@ func cmdRun(args []string) {
 	output := fs.String("output", "", "Output JSONL file")
 
 	provider := fs.String("provider", "anthropic", "LLM provider: anthropic|openai")
-	model := fs.String("model", "", "Provider model override")
+	model := fs.String("model", "", "Provider model override (Anthropic: use docs IDs, e.g. claude-haiku-4-5 or claude-haiku-3-5)")
 
 	anthropicKey := fs.String("anthropic-key", envOr("ANTHROPIC_API_KEY", ""), "Anthropic API key")
 	openaiKey := fs.String("openai-key", envOr("OPENAI_API_KEY", ""), "OpenAI API key")

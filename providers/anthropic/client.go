@@ -15,8 +15,10 @@ import (
 )
 
 const (
-	defaultBaseURL        = "https://api.anthropic.com"
-	defaultModel          = "claude-3-5-haiku-latest"
+	defaultBaseURL = "https://api.anthropic.com"
+	// Default matches Anthropic docs / pricing names (e.g. claude-opus-4-6, claude-haiku-4-5).
+	// Prefer these over dated snapshots for batch; unknown dated IDs can return not_found_error.
+	defaultModel = "claude-haiku-4-5"
 	defaultHTTPTimeout    = 120 * time.Second
 	defaultAnthropicToken = 2048
 	apiVersion            = "2023-06-01"
@@ -220,6 +222,37 @@ func (c *Client) PollBatch(ctx context.Context, jobID string) (redditextract.Bat
 	}, nil
 }
 
+// formatAnthropicBatchError turns batch item error JSON into a readable string.
+// The API often returns a wrapper like {"type":"error","error":{"type":"invalid_request_error","message":"..."}}.
+func formatAnthropicBatchError(raw json.RawMessage) string {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "null" {
+		return "unknown batch error"
+	}
+	var flat struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(raw, &flat) == nil && flat.Message != "" {
+		if flat.Type != "" {
+			return flat.Type + ": " + flat.Message
+		}
+		return flat.Message
+	}
+	var wrapped struct {
+		Type  string          `json:"type"`
+		Inner json.RawMessage `json:"error"`
+	}
+	if json.Unmarshal(raw, &wrapped) == nil && len(wrapped.Inner) > 0 {
+		innerStr := formatAnthropicBatchError(wrapped.Inner)
+		if wrapped.Type != "" && wrapped.Type != "error" {
+			return wrapped.Type + ": " + innerStr
+		}
+		return innerStr
+	}
+	return s
+}
+
 // GetBatchResults fetches and parses NDJSON batch result rows.
 func (c *Client) GetBatchResults(ctx context.Context, jobID string) ([]redditextract.BatchItemResult, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, "/v1/messages/batches/"+jobID+"/results", nil)
@@ -262,10 +295,7 @@ func (c *Client) GetBatchResults(ctx context.Context, jobID string) ([]redditext
 						OutputTokens int `json:"output_tokens"`
 					} `json:"usage"`
 				} `json:"message"`
-				Error *struct {
-					Type    string `json:"type"`
-					Message string `json:"message"`
-				} `json:"error"`
+				Error json.RawMessage `json:"error"`
 			} `json:"result"`
 		}
 
@@ -278,8 +308,8 @@ func (c *Client) GetBatchResults(ctx context.Context, jobID string) ([]redditext
 		}
 
 		if row.Result.Type != "succeeded" || row.Result.Message == nil {
-			if row.Result.Error != nil {
-				item.Error = fmt.Sprintf("%s: %s", row.Result.Error.Type, row.Result.Error.Message)
+			if len(row.Result.Error) > 0 {
+				item.Error = formatAnthropicBatchError(row.Result.Error)
 			} else {
 				item.Error = fmt.Sprintf("batch result type=%s", row.Result.Type)
 			}
