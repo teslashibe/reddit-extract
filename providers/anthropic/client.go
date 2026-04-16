@@ -18,7 +18,7 @@ const (
 	defaultBaseURL = "https://api.anthropic.com"
 	// Default matches Anthropic docs / pricing names (e.g. claude-opus-4-6, claude-haiku-4-5).
 	// Prefer these over dated snapshots for batch; unknown dated IDs can return not_found_error.
-	defaultModel = "claude-haiku-4-5"
+	defaultModel          = "claude-haiku-4-5"
 	defaultHTTPTimeout    = 120 * time.Second
 	defaultAnthropicToken = 2048
 	apiVersion            = "2023-06-01"
