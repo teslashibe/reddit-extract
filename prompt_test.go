@@ -26,6 +26,7 @@ func TestBuildUserPromptTruncatesBodyAndLimitsComments(t *testing.T) {
 		Source:      SourceReddit,
 		SourceURL:   "https://reddit.com/r/test/comments/abc123/example/",
 		Subreddit:   "test",
+		Author:      "op_alice",
 		Title:       "Example title",
 		Body:        strings.Repeat("x", 100),
 		PublishedAt: time.Date(2026, 4, 6, 0, 0, 0, 0, time.UTC),
@@ -37,6 +38,9 @@ func TestBuildUserPromptTruncatesBodyAndLimitsComments(t *testing.T) {
 	}
 
 	prompt := BuildUserPrompt(record, 20, 2)
+	if !strings.Contains(prompt, "Author: op_alice\n") {
+		t.Fatalf("expected post author in prompt, got:\n%s", prompt)
+	}
 	if !strings.Contains(prompt, "[...truncated]") {
 		t.Fatalf("expected body truncation marker")
 	}
@@ -45,6 +49,23 @@ func TestBuildUserPromptTruncatesBodyAndLimitsComments(t *testing.T) {
 	}
 	if strings.Contains(prompt, "three") {
 		t.Fatalf("third comment should be omitted")
+	}
+}
+
+func TestBuildUserPromptOmitsBlankAuthor(t *testing.T) {
+	record := ContentRecord{
+		ID:          "abc123",
+		Source:      SourceReddit,
+		Subreddit:   "test",
+		Author:      "   ",
+		Title:       "Example title",
+		Body:        "Body",
+		PublishedAt: time.Date(2026, 4, 6, 0, 0, 0, 0, time.UTC),
+	}
+
+	prompt := BuildUserPrompt(record, 8000, 0)
+	if strings.Contains(prompt, "Author:") {
+		t.Fatalf("blank author should be omitted, got:\n%s", prompt)
 	}
 }
 

@@ -48,6 +48,9 @@ func BuildUserPrompt(record ContentRecord, maxBodyChars, maxComments int) string
 	b.WriteString(fmt.Sprintf("Source: %s\n", record.Source))
 	b.WriteString(fmt.Sprintf("Subreddit: r/%s\n", record.Subreddit))
 	b.WriteString(fmt.Sprintf("Post ID: %s\n", record.ID))
+	if author := strings.TrimSpace(record.Author); author != "" {
+		b.WriteString(fmt.Sprintf("Author: %s\n", author))
+	}
 	if record.SourceURL != "" {
 		b.WriteString(fmt.Sprintf("URL: %s\n", record.SourceURL))
 	}
